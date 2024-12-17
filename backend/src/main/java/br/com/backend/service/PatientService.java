@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class PatientService {
@@ -17,10 +18,10 @@ public class PatientService {
 
     @Transactional
     public Patient savePatient(Patient patient) {
-        //validar se o paciente já existe, só salvar se não existir. Se existir dar msg de erro
-        //Validar se o cpf é valido.
-        //Validar se a data de nascimento é menor que a data de amanha. Se nao for, msg de erro
+        // Chama o método de validação
+        validatePatient(patient, null);
 
+        // Salva o paciente
         Patient savedPatient = patientRepository.save(patient);
         patientRepository.flush();
         return savedPatient;
@@ -34,10 +35,17 @@ public class PatientService {
 
     @Transactional
     public Patient updatePatient(Long id, Patient patient) {
+        // Busca o paciente existente
         Patient existingPatient = getPatientById(id);
+
+        // Atualiza os campos do paciente
         existingPatient.setName(patient.getName());
         existingPatient.setCpf(patient.getCpf());
         existingPatient.setDob(patient.getDob());
+
+        // Valida antes de atualizar
+        validatePatient(existingPatient, id);
+
         return patientRepository.save(existingPatient);
     }
 
@@ -51,11 +59,54 @@ public class PatientService {
     public List<Patient> getPatientsByParam(String name, String cpf) {
         if (name != null) {
             return patientRepository.findByNameContainingIgnoreCase(name);
-        } else if (cpf != null) {
-            return patientRepository.findByCpf(cpf);
+        } else if (cpf != null && !cpf.isEmpty()) {
+            return patientRepository.findByCpf(cpf)
+                    .map(List::of) // Converte Optional<Patient> para List<Patient>
+                    .orElse(List.of()); // Retorna lista vazia se não encontrar
         } else {
             return patientRepository.findAll();
         }
+    }
+
+    /**
+     * Método privado para validar um paciente.
+     * - Verifica se o CPF é válido.
+     * - Verifica se o paciente já existe (com base no CPF) em caso de criação.
+     * - Verifica se a data de nascimento é válida (menor que amanhã).
+     */
+    private void validatePatient(Patient patient, Long id) {
+        // Validação de CPF
+        if (!isValidCPF(patient.getCpf())) {
+            throw new IllegalArgumentException("CPF inválido.");
+        }
+
+        // Validação de existência de paciente com o mesmo CPF (para criação)
+        Optional<Patient> existingPatient = patientRepository.findByCpf(patient.getCpf());
+        if (existingPatient.isPresent() && !existingPatient.get().getId().equals(id)) {
+            throw new IllegalArgumentException("Paciente com o mesmo CPF já existe.");
+        }
+
+        // Validação de data de nascimento
+        if (patient.getDob() == null || !patient.getDob().isBefore(LocalDate.now().plusDays(1))) {
+            throw new IllegalArgumentException("A data de nascimento deve ser anterior à data de amanhã.");
+        }
+    }
+
+    /**
+     * Método utilitário para validar CPF.
+     * @param cpf - CPF no formato String
+     * @return boolean
+     */
+    private boolean isValidCPF(String cpf) {
+        // Remove caracteres não numéricos
+        cpf = cpf.replaceAll("\\D", "");
+
+        // Valida o tamanho e sequências inválidas
+        if (cpf.length() != 11 || cpf.matches("(\\d)\\1{10}")) {
+            return false;
+        }
+
+        return true;
     }
 
 

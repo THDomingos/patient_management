@@ -2,11 +2,11 @@ import React from 'react';
 import Navbar from '../components/Navbar.tsx';
 import PatientForm from '../components/Patient/PatientForm.tsx';
 
-const List: React.FC = () => (
+const Insert: React.FC = () => (
   <div>
     <Navbar />
     <PatientForm />
   </div>
 );
 
-export default List;
+export default Insert;
